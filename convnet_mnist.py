@@ -7,7 +7,7 @@ def weight_variable(shape):
 
 def bias_variable(shape):
     # small positive bias value so that we dont end with a lot of dead neurons using ReLU
-    return tf.Variable(tf.constant(0.1, tf.float32, shape))
+    return tf.Variable(tf.constant(0.1, shape=shape))
 
 # We are using Vanilla Convnets with stride 1, so define functions to do this automatically
 def conv2d(input, filter):
@@ -28,6 +28,9 @@ biasConv1 = bias_variable([32])
 # Placeholder is needed since we want to run the training in batches
 x = tf.placeholder(tf.float32, [None, 784])
 x_image = tf.reshape(x, [-1,28,28,1])
+
+# Set up placeholders for input labels
+ye = tf.placeholder(tf.float32, [None, 10])
 
 conv1 = conv2d(x_image, Wconv1)
 relu1 = tf.nn.relu(tf.add(conv1, biasConv1))
@@ -55,21 +58,19 @@ fcc = tf.nn.relu(tf.add(tf.matmul(max_pool2_flat, Wfcc), biasFcc))
 Wout = weight_variable([1024, 10])
 biasOut = bias_variable([10])
 
-# Do I need a relu here?
-out = tf.nn.relu(tf.add(tf.matmul(fcc, Wout), biasOut))
+# No need for ReLU here since this is the output layer, using ReLU simply makes things more complicated
+out = tf.add(tf.matmul(fcc, Wout), biasOut)
 
-# Set up placeholders for input labels
-ye = tf.placeholder(tf.float32, [None, 10])
 # Loss Function : Cross Entropy, Optimizer
-cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=ye, logits=out)
-train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=ye, logits=out))
+train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
 # Training 
 sess = tf.Session()
 init_var = tf.global_variables_initializer()
 sess.run(init_var)
 
-for i in range(1000):
+for i in range(10):
     print(i)
     batch_x, batch_ye = mnist.train.next_batch(100)
     sess.run(train_step, {x:batch_x, ye:batch_ye})
