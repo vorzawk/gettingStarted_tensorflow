@@ -5,6 +5,8 @@ with open('shortStories.txt') as file:
     corpus_raw = ''
     for i,line in enumerate(file):
         corpus_raw += line
+        if i > 3:
+            break
 
 def create_lookup_tables(text):
     """
@@ -58,14 +60,21 @@ def get_batches(int_text, batch_size, seq_length):
     :param seq_length: the length of each sequence
     :return: batches of data as a numpy array
     """
+#    print('int_text size = ',len(int_text))
+#    print('batch_size = ',batch_size,'seq_length = ',seq_length)
     words_per_batch = batch_size * seq_length
     num_batches = len(int_text)//words_per_batch
+#    print(num_batches)
     int_text = int_text[:num_batches*words_per_batch]
     y = np.array(int_text[1:] + [int_text[0]])
     x = np.array(int_text)
+#    print(int_text)
 
+    # Reshape x which is one large tensor into 
     x_batches = np.split(x.reshape(batch_size, -1), num_batches, axis=1)
     y_batches = np.split(y.reshape(batch_size, -1), num_batches, axis=1)
+#    print('x_batches\n', x_batches)
+#    print('y_batches\n', y_batches)
 
     batch_data = list(zip(x_batches, y_batches))
 
@@ -73,12 +82,12 @@ def get_batches(int_text, batch_size, seq_length):
 
 
 num_epochs = 1
-batch_size = 512
+batch_size = 16
 rnn_size = 512
 num_layers = 3
 keep_prob = 0.7
 embed_dim = 512
-seq_length = 30
+seq_length = 20
 learning_rate = 0.001
 save_dir = './save'
 
@@ -95,6 +104,7 @@ with train_graph.as_default():
     input_text_shape = tf.shape(input_text)
 
     # Build the RNN cell
+    # num_units is the number of neurons in the hidden layer?
     lstm = tf.contrib.rnn.BasicLSTMCell(num_units=rnn_size)
     drop_cell = tf.contrib.rnn.DropoutWrapper(lstm, output_keep_prob=keep_prob)
     cell = tf.contrib.rnn.MultiRNNCell([drop_cell] * num_layers)
@@ -151,6 +161,7 @@ with tf.Session(graph=train_graph) as sess:
                 initial_state: state,
                 lr: learning_rate
             }
+#            print(x,y)
             train_loss, state, _ = sess.run([cost, final_state, train_op], feed_dict)
 
         time_elapsed = time.time() - start_time
@@ -175,10 +186,11 @@ def pick_word(probabilities, int_to_vocab):
     :param int_to_vocab: Dictionary of word ids as the keys and words as the values
     :return: String of the predicted word
     """
-    return np.random.choice(list(int_to_vocab.values()), 1, p=probabilities)[0]
+#    print(list(int_to_vocab.values()), len(int_to_vocab.values()))
+    return np.random.choice(list(int_to_vocab.values()), p=probabilities)
 
-gen_length = 1000
-prime_words = 'billy'
+gen_length = 100
+prime_words = 'he'
 
 loaded_graph = tf.Graph()
 with tf.Session(graph=loaded_graph) as sess:
@@ -201,13 +213,15 @@ with tf.Session(graph=loaded_graph) as sess:
         # Dynamic Input
         dyn_input = [[vocab_to_int[word] for word in gen_sentences[-seq_length:]]]
         dyn_seq_length = len(dyn_input[0])
+#        print(dyn_input, dyn_seq_length)
 
         # Get Prediction
         probabilities, prev_state = sess.run(
             [probs, final_state],
             {input_text: dyn_input, initial_state: prev_state})
 
-        pred_word = pick_word(probabilities[dyn_seq_length-1], int_to_vocab)
+#        print(probabilities.shape)
+        pred_word = pick_word(probabilities[0][0], int_to_vocab)
 
         gen_sentences.append(pred_word)
 
